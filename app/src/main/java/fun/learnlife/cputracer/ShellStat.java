@@ -15,6 +15,7 @@ public class ShellStat extends IStat {
     private static IStat processStat;
     public String ratioStr;
     public String threadName;
+    public String pidStr;
 
     public static ArrayList<IStat> getThreadStats() {
         return threadStats;

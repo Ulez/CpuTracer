@@ -1,6 +1,5 @@
 package fun.learnlife.cputracer;
 
-import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -64,8 +63,7 @@ public class CpuTracer {
     public CpuTracer init(CpuCallBack cpuCallBack, Context context) {
         this.cpuCallBack = cpuCallBack;
         canReadProcFile = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || checkIsSystemApp(context);
-        Log.d("lcyy", "can = " + canReadProcFile);
-//        canReadProcFile = false;
+//        Log.d("lcyy", "can = " + canReadProcFile);
         if (canReadProcFile) {
             File[] threadsProcFiles = new File("/proc/" + mPid + "/task").listFiles();
             if (threadsProcFiles == null || threadsProcFiles.length < 1) {
@@ -84,56 +82,8 @@ public class CpuTracer {
         return this;
     }
 
-    /**
-     * 适配Android O以上的版本。
-     * 进程占用：top -n 1 | grep speechserver
-     * 线程占用：top -t -n 1 | grep speechserver
-     */
-    private void getByShell(String[] cmd, ArrayList<ShellStat> shellStats) {
-        Log.e(TAG, "getByShell ===");
-        shellStats.clear();
-        Process process = null;
-        try {
-            process = Runtime.getRuntime().exec(cmd);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            Log.e("oooo", "start--------");
-//            Log.e("lcyy111","line===="+reader.readLine());
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                Log.e("oooo", "line=-----" + line);
-                if (TextUtils.isEmpty(line)) {
-                    continue;
-                }
-                ShellStat shellStat = new ShellStat();
-                String[] content = line.split(" ");
-                ArrayList<String> infos = new ArrayList<>();
-                for (String s : content) {
-                    if (!TextUtils.isEmpty(line)) {
-                        infos.add(s);
-                    }
-                }
-                if (infos == null || infos.size() < 9) return;
-                if ("0%".equals(infos.get(3))) {
-                    break;
-                }
-                shellStat.ratioStr = infos.get(3);
-                shellStat.threadName = infos.get(9);
-                shellStats.add(shellStat);
-                Log.e("oooo", line);
-            }
-            Log.e("oooo", "end--------");
-        } catch (IOException e) {
-            Log.e("oooo", "get line11 error =" + e.getMessage());
-            e.printStackTrace();
-        } finally {
-            if (process != null) {
-                process.destroy();
-            }
-        }
-    }
-
     private volatile boolean getting = true;
+    private int iterv = 10000;
 
     public void start() {
         getting = true;
@@ -142,8 +92,8 @@ public class CpuTracer {
             public void run() {
                 Thread.currentThread().setName("GetCpuInfoThread");
                 while (getting) {
-                    SystemClock.sleep(5000);
                     updateAndPrint();
+                    SystemClock.sleep(iterv);
                 }
             }
         }).start();
@@ -171,22 +121,62 @@ public class CpuTracer {
             if (cpuCallBack != null)
                 cpuCallBack.handleInfo(totalStat, processStat, threadStats);
         } else {
-            String[] cmd = {"sh", "-c",
-                    "top -t -n 1 | grep " + pkgName
-            };
-            getByShell(cmd, threadShellStats);
             String[] cmd2 = {"sh", "-c",
-                    "top -n 1 | grep " + pkgName
+                    "top -n 1"
             };
             getByShell(cmd2, processShellStat);
+            String[] cmd = {"sh", "-c",
+                    "top -H -n 1"
+            };
+            getByShell(cmd, threadShellStats);
             if (cpuCallBack != null)
                 cpuCallBack.handleInfo(processShellStat, threadShellStats);
         }
     }
 
+
+    private void getByShell(String[] cmd, ArrayList<ShellStat> shellStats) {
+        shellStats.clear();
+        Process process = null;
+        try {
+            process = Runtime.getRuntime().exec(cmd);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+//            Log.e("oooo", "start--------");
+//            Log.e("lcyy111", "line====" + reader.readLine());
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+//                Log.e("oooo", "line=-----" + line);
+                if (TextUtils.isEmpty(line) || !line.contains("" + mPid)) {
+                    continue;
+                }
+                ShellStat shellStat = new ShellStat();
+                String[] content = line.split(" ");
+                ArrayList<String> infos = new ArrayList<>();
+                for (String s : content) {
+                    if (!TextUtils.isEmpty(s)) {
+                        infos.add(s);
+                    }
+                }
+                if (infos == null || infos.size() < 11) continue;
+                shellStat.pidStr = infos.get(0);
+                shellStat.threadName = infos.get(11);
+                shellStat.ratioStr = infos.get(8);
+                shellStats.add(shellStat);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "error =" + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            if (process != null) {
+                process.destroy();
+            }
+        }
+    }
+
     public void stop() {
         getting = false;
-        Log.e(TAG, "stop ---- getting = " + getting);
+        Log.d(TAG, "stop ---- getting = " + getting);
     }
 
     private boolean checkIsSystemApp(Context context) {
@@ -198,7 +188,7 @@ public class CpuTracer {
                 Log.i("isSystem", ">>>>>pi.packageName<<<<<" + pi.packageName);
                 if (pi.packageName.equals(pkgName)) {
                     ai = pm.getApplicationInfo(pi.packageName, 0);
-                    Log.e("isSystem", ">>>>>>packages is<<<<<<<<" + ai.publicSourceDir);
+                    Log.d("isSystem", ">>>>>>packages is<<<<<<<<" + ai.publicSourceDir);
                     if ((ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
                         Log.d(TAG, ">>>>>>packages is system package:" + pi.packageName);
                         return true;

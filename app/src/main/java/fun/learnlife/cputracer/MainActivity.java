@@ -32,12 +32,16 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void handleInfo(FileStat totalStat, FileStat processStat, ArrayList<FileStat> threadStats) {
                 final StringBuffer sb = new StringBuffer();
-                sb.append("本进程占cpu:" + 100 * processStat.ratio + "%");
-                sb.append('\n');
+                sb.append("proc:本进程占cpu:").append(100 * processStat.ratio).append("%").append('\n');
                 for (FileStat s : threadStats) {
                     long threadTime = s.costStime + s.costUtime;
-                    sb.append(s.getName() + ",threadCostTime = " + threadTime + ",本线程占用cpu:" + 100 * s.ratio + "%");
-                    sb.append('\n');
+                    sb.append(s.getName())
+                            .append(",threadCostTime = ")
+                            .append(threadTime)
+                            .append(",本线程占用cpu:")
+                            .append(100 * s.ratio)
+                            .append("%")
+                            .append('\n');
                 }
                 runOnUiThread(new Runnable() {
                     @Override
@@ -49,12 +53,19 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void handleInfo(ArrayList<ShellStat> processStat, ArrayList<ShellStat> threadStats) {
+                final StringBuffer sb = new StringBuffer();
                 for (ShellStat s : processStat) {
-                    Log.d("lcyy", s.threadName = "shell 本进程占手机cpu ratio = " + s.ratio);
+                    sb.append("pid=").append(s.pidStr).append(",shell:本进程占cpu:").append(s.ratioStr).append('\n');
                 }
                 for (ShellStat s : threadStats) {
-                    Log.d("lcyy", s.threadName + ", shell 线程占用系统ratio的：" + s.ratio);
+                    sb.append("pid=").append(s.pidStr).append(",").append(s.threadName).append(",本线程占用cpu:").append(s.ratioStr).append('\n');
                 }
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvInfo.setText(sb.toString());
+                    }
+                });
             }
         }, this).start();
     }
