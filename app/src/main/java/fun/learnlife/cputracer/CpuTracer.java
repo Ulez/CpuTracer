@@ -20,9 +20,9 @@ import java.util.Comparator;
 import java.util.List;
 
 public class CpuTracer {
-
+    private String pkgName = "fun.learnlife.cputracer";
     private static final String TAG = "CpuTracer";
-    private int mPid = 0;
+    private int mPid = android.os.Process.myPid();
     static ArrayList<ShellStat> threadShellStats = new ArrayList<>();
     private ArrayList<ShellStat> processShellStat = new ArrayList<>();
 
@@ -44,7 +44,6 @@ public class CpuTracer {
     };
     private CpuCallBack cpuCallBack;
     private static CpuTracer mInstance;
-    private String pkgName;
 
     private CpuTracer() {
 
@@ -62,24 +61,17 @@ public class CpuTracer {
     }
 
 
-    public CpuTracer init(CpuCallBack cpuCallBack, Context context, String pkgName) {
-        this.pkgName = pkgName;
+    public CpuTracer init(CpuCallBack cpuCallBack, Context context) {
         this.cpuCallBack = cpuCallBack;
         canReadProcFile = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || checkIsSystemApp(context);
-        Log.e("lcyy", "can = " + canReadProcFile);
+        Log.d("lcyy", "can = " + canReadProcFile);
+//        canReadProcFile = false;
         if (canReadProcFile) {
-            ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-            List<ActivityManager.RunningAppProcessInfo> pids = am.getRunningAppProcesses();
-            for (int i = 0; i < pids.size(); i++) {
-                ActivityManager.RunningAppProcessInfo info = pids.get(i);
-                Log.e(TAG, "processName = " + info.processName);
-                if (info.processName.equalsIgnoreCase(pkgName)) {
-                    mPid = info.pid;
-                    break;
-                }
-            }
-            Log.d(TAG, "get pid =" + mPid);
             File[] threadsProcFiles = new File("/proc/" + mPid + "/task").listFiles();
+            if (threadsProcFiles == null || threadsProcFiles.length < 1) {
+                Log.e(TAG, "error get proc,Pid =" + mPid);
+                return this;
+            }
             for (File threadFile : threadsProcFiles) {//进程下面各个线程的CPU使用情况
                 int threadID = Integer.parseInt(threadFile.getName());
 //            Log.d("lcyy", "线程号:" + threadID);
@@ -88,8 +80,6 @@ public class CpuTracer {
             }
             processStat = new FileStat("/proc/" + mPid + "/stat", true);//进程CPU使用情况
             totalStat = new FileStat("/proc/stat", false);//总的cpu时间
-        } else {//兼容Android O以上
-
         }
         return this;
     }
@@ -100,7 +90,7 @@ public class CpuTracer {
      * 线程占用：top -t -n 1 | grep speechserver
      */
     private void getByShell(String[] cmd, ArrayList<ShellStat> shellStats) {
-        Log.e(TAG,"getByShell ===");
+        Log.e(TAG, "getByShell ===");
         shellStats.clear();
         Process process = null;
         try {
@@ -111,7 +101,7 @@ public class CpuTracer {
 //            Log.e("lcyy111","line===="+reader.readLine());
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                Log.e("oooo", "line=-----"+line);
+                Log.e("oooo", "line=-----" + line);
                 if (TextUtils.isEmpty(line)) {
                     continue;
                 }
@@ -123,7 +113,7 @@ public class CpuTracer {
                         infos.add(s);
                     }
                 }
-                if (infos==null||infos.size()<9)return;
+                if (infos == null || infos.size() < 9) return;
                 if ("0%".equals(infos.get(3))) {
                     break;
                 }
@@ -167,6 +157,7 @@ public class CpuTracer {
             s.updateCpuInfo();
         }
         if (canReadProcFile) {
+            if (processStat == null) return;
             processStat.updateCpuInfo();
             totalStat.updateCpuInfo();
             Collections.sort(threadStats, sLoadComparator);
@@ -180,12 +171,12 @@ public class CpuTracer {
             if (cpuCallBack != null)
                 cpuCallBack.handleInfo(totalStat, processStat, threadStats);
         } else {
-//            String[] cmd = {"sh", "-c",
-//                    "top -t -n 1 | grep " + pkgName
-//            };
-//            getByShell(cmd, threadShellStats);
+            String[] cmd = {"sh", "-c",
+                    "top -t -n 1 | grep " + pkgName
+            };
+            getByShell(cmd, threadShellStats);
             String[] cmd2 = {"sh", "-c",
-                    "top -n 1"
+                    "top -n 1 | grep " + pkgName
             };
             getByShell(cmd2, processShellStat);
             if (cpuCallBack != null)
@@ -204,7 +195,7 @@ public class CpuTracer {
         for (PackageInfo pi : list) {
             ApplicationInfo ai = null;
             try {
-                Log.e("isSystem", ">>>>>pi.packageName<<<<<" + pi.packageName);
+                Log.i("isSystem", ">>>>>pi.packageName<<<<<" + pi.packageName);
                 if (pi.packageName.equals(pkgName)) {
                     ai = pm.getApplicationInfo(pi.packageName, 0);
                     Log.e("isSystem", ">>>>>>packages is<<<<<<<<" + ai.publicSourceDir);

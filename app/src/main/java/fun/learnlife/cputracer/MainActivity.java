@@ -1,19 +1,22 @@
 package fun.learnlife.cputracer;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
+import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
+    TextView tvInfo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        tvInfo = findViewById(R.id.tv_info);
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -28,14 +31,20 @@ public class MainActivity extends AppCompatActivity {
         CpuTracer.getInstance().init(new CpuCallBack() {
             @Override
             public void handleInfo(FileStat totalStat, FileStat processStat, ArrayList<FileStat> threadStats) {
-                long appTime = totalStat.totalCPUTimeCost;
-                long processTime = processStat.costStime + processStat.costUtime;
-                Log.d("lcyy", "--------print cpu Info-----------");
-                Log.d("lcyy", "本进程占手机cpu ratio = " + 1.0 * processTime / appTime + "=" + processStat.ratio);
+                final StringBuffer sb = new StringBuffer();
+                sb.append("本进程占cpu:" + 100 * processStat.ratio + "%");
+                sb.append('\n');
                 for (FileStat s : threadStats) {
                     long threadTime = s.costStime + s.costUtime;
-                    Log.d("lcyy", s.getName() + ",threadTime = " + threadTime + ",占用系统ratio的：" + 1.0 * threadTime / appTime + "=" + s.ratio);
+                    sb.append(s.getName() + ",threadCostTime = " + threadTime + ",本线程占用cpu:" + 100 * s.ratio + "%");
+                    sb.append('\n');
                 }
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvInfo.setText(sb.toString());
+                    }
+                });
             }
 
             @Override
@@ -47,6 +56,6 @@ public class MainActivity extends AppCompatActivity {
                     Log.d("lcyy", s.threadName + ", shell 线程占用系统ratio的：" + s.ratio);
                 }
             }
-        }, this, "com.taobao.taobao").start();
+        }, this).start();
     }
 }
